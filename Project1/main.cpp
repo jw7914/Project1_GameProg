@@ -109,7 +109,7 @@ void initialise()
     // Initialise video and joystick subsystems
     SDL_Init(SDL_INIT_VIDEO);
 
-    g_display_window = SDL_CreateWindow("Hello, Textures!",
+    g_display_window = SDL_CreateWindow("Project 1",
                                       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                       WINDOW_WIDTH, WINDOW_HEIGHT,
                                       SDL_WINDOW_OPENGL);
@@ -174,26 +174,39 @@ void update()
     
     /* Sin Calculations */
     float sin = glm::sin(theta);
+    float cos = glm::cos(theta);
     theta += 1.0f * delta_time;
 
     /* Varable Initialization */
-    glm::vec3 translation_vector;
+    glm::vec3 earth_translation_vector;
+    glm::vec3 moon_translation_vector;
     glm::vec3 scale_vector;
-    glm::vec3 rotation_triggers;
     
     /* Game logic */
-    translation_vector = glm::vec3(sin * 50, sin * 50, 0.0f);
+    earth_translation_vector = glm::vec3(sin * 40 * 0.02, sin * 40 * 0.02, 0.0f);
+    moon_translation_vector = glm::vec3(sin * 60 * 0.02, cos * 60 * 0.02, 0.0f);
+    scale_vector = glm::vec3((sin * sin * 0.25f) + 1,
+                             (sin * sin * 0.25f) + 1,
+                             1.0f);
+    g_rotation_kimi.y += ROT_INCREMENT * delta_time;
+
+    
 
     /* Model matrix reset */
     g_kimi_matrix    = glm::mat4(1.0f);
     g_totsuko_matrix = glm::mat4(1.0f);
-    
 
     /* Transformations */
-    g_kimi_matrix = glm::translate(g_kimi_matrix, translation_vector);
+    g_kimi_matrix = glm::translate(g_kimi_matrix, earth_translation_vector);
     g_kimi_matrix = glm::scale(g_kimi_matrix, INIT_SCALE);
+    
+    g_totsuko_matrix = glm::translate(g_kimi_matrix, moon_translation_vector);
 
-    g_totsuko_matrix = glm::scale(g_totsuko_matrix, INIT_SCALE);
+    g_totsuko_matrix = glm::scale(g_totsuko_matrix, scale_vector);
+    
+    g_kimi_matrix = glm::rotate(g_kimi_matrix,
+                                    g_rotation_kimi.y,
+                                    glm::vec3(0.0f, 1.0f, 0.0f));
     
 }
 
