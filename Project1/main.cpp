@@ -1,175 +1,263 @@
-// Authors: Jason Wu, Antonio Baranes, Yinyi Feng, Nabiha Siddique, Ninad Moharir, Chris Jin, Alok Aenugu
-
+/**
+* Author: Jason Wu - JW7914
+* Assignment: Simple 2D Scene
+* Date due: 2023-09-20, 11:59pm
+* I pledge that I have completed this assignment without
+* collaborating with anyone else, in conformance with the
+* NYU School of Engineering Policies and Procedures on
+* Academic Misconduct.
+**/
+ 
 #define GL_SILENCE_DEPRECATION
- #define GL_GLEXT_PROTOTYPES 1
- #define LOG(argument) std::cout << argument << '\n'
+#define STB_IMAGE_IMPLEMENTATION
+#define LOG(argument) std::cout << argument << '\n'
+#define GL_GLEXT_PROTOTYPES 1
 
- #ifdef _WINDOWS
- #include <GL/glew.h>
- #endif
+#ifdef _WINDOWS
+#include <GL/glew.h>
+#endif
 
- #include <SDL.h>
- #include <SDL_opengl.h>
- #include "glm/mat4x4.hpp"
- #include "glm/gtc/matrix_transform.hpp"
- #include "ShaderProgram.h"
+#include <SDL.h>
+#include <SDL_opengl.h>
+#include "glm/mat4x4.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "ShaderProgram.h"
+#include "stb_image.h"
 
- enum AppStatus { RUNNING, TERMINATED };
+enum AppStatus { RUNNING, TERMINATED };
 
- constexpr char V_SHADER_PATH[] = "shaders/vertex.glsl",
-                F_SHADER_PATH[] = "shaders/fragment.glsl";
+constexpr int WINDOW_WIDTH  = 640 * 2,
+              WINDOW_HEIGHT = 480 * 2;
 
- constexpr int WINDOW_WIDTH  = 640,
-               WINDOW_HEIGHT = 480;
+constexpr float BG_RED     = 0.9765625f,
+                BG_GREEN   = 0.97265625f,
+                BG_BLUE    = 0.9609375f,
+                BG_OPACITY = 1.0f;
 
- constexpr float BG_RED     = 0.1922f,
-                 BG_BLUE    = 0.549f,
-                 BG_GREEN   = 0.9059f,
-                 BG_OPACITY = 1.0f;
+constexpr int VIEWPORT_X      = 0,
+              VIEWPORT_Y      = 0,
+              VIEWPORT_WIDTH  = WINDOW_WIDTH,
+              VIEWPORT_HEIGHT = WINDOW_HEIGHT;
 
- constexpr int VIEWPORT_X      = 0,
-               VIEWPORT_Y      = 0,
-               VIEWPORT_WIDTH  = WINDOW_WIDTH,
-               VIEWPORT_HEIGHT = WINDOW_HEIGHT;
+constexpr char V_SHADER_PATH[] = "shaders/vertex_textured.glsl",
+               F_SHADER_PATH[] = "shaders/fragment_textured.glsl";
 
- constexpr int TRIANGLE_RED     = 1.0,
-               TRIANGLE_BLUE    = 0.4,
-               TRIANGLE_GREEN   = 0.4,
-               TRIANGLE_OPACITY = 1.0;
+constexpr float MILLISECONDS_IN_SECOND = 1000.0;
 
- SDL_Window* g_display_window;
+constexpr GLint NUMBER_OF_TEXTURES = 1, // to be generated, that is
+                LEVEL_OF_DETAIL    = 0, // mipmap reduction image level
+                TEXTURE_BORDER     = 0; // this value MUST be zero
 
- AppStatus g_app_status = RUNNING;
+constexpr char KIMI_SPRITE_FILEPATH[]    = "earth.png",
+               TOTSUKO_SPRITE_FILEPATH[] = "moon.png";
 
- int  g_frame_counter = 0;
+constexpr glm::vec3 INIT_SCALE       = glm::vec3(2.0f, 1.98f, 0.0f);
 
- ShaderProgram g_shader_program;
- glm::mat4 g_view_matrix,
-           g_model_matrix,
-           g_projection_matrix;
+constexpr float ROT_INCREMENT = 1.0f;
 
- // ——————————— GLOBAL VARS AND CONSTS FOR TRANSFORMATIONS ——————————— //
- float theta = 0;
- float g_previous_ticks  = 0.0f;
- constexpr float MILLISECONDS_IN_SECOND = 1000.0;
+float theta = 0.0f;
 
+SDL_Window* g_display_window;
+AppStatus g_app_status = RUNNING;
+ShaderProgram g_shader_program = ShaderProgram();
 
- // —————————————————————————————————————————————————————————————————— //
+glm::mat4 g_view_matrix,
+          g_kimi_matrix,
+          g_totsuko_matrix,
+          g_projection_matrix;
 
+float g_previous_ticks = 0.0f;
 
- void initialise()
- {
-     SDL_Init(SDL_INIT_VIDEO);
-     g_display_window = SDL_CreateWindow("Transformation Exercise",
-         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-         WINDOW_WIDTH, WINDOW_HEIGHT,
-         SDL_WINDOW_OPENGL);
+glm::vec3 g_rotation_kimi    = glm::vec3(0.0f, 0.0f, 0.0f),
+          g_rotation_totsuko = glm::vec3(0.0f, 0.0f, 0.0f);
 
-     SDL_GLContext context = SDL_GL_CreateContext(g_display_window);
-     SDL_GL_MakeCurrent(g_display_window, context);
-
- #ifdef _WINDOWS
-     glewInit();
- #endif
-
-     glViewport(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
-
-     g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
-
-     g_view_matrix       = glm::mat4(1.0f);
-     g_model_matrix      = glm::mat4(1.0f);
-     g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
-
-     g_shader_program.set_projection_matrix(g_projection_matrix);
-     g_shader_program.set_view_matrix(g_view_matrix);
-
-     g_shader_program.set_colour(TRIANGLE_RED,
-                                 TRIANGLE_BLUE,
-                                 TRIANGLE_GREEN,
-                                 TRIANGLE_OPACITY);
-
-     glUseProgram(g_shader_program.get_program_id());
-
-     glClearColor(BG_RED,
-                  BG_BLUE,
-                  BG_GREEN,
-                  BG_OPACITY);
- }
+GLuint g_kimi_texture_id,
+       g_totsuko_texture_id;
 
 
- void process_input()
- {
-     SDL_Event event;
-     while (SDL_PollEvent(&event))
-     {
-         if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE)
-         {
-             g_app_status = TERMINATED;
-         }
-     }
- }
+GLuint load_texture(const char* filepath)
+{
+    // STEP 1: Loading the image file
+    int width, height, number_of_components;
+    unsigned char* image = stbi_load(filepath, &width, &height, &number_of_components, STBI_rgb_alpha);
+
+    if (image == NULL)
+    {
+        LOG("Unable to load image. Make sure the path is correct.");
+        assert(false);
+    }
+
+    // STEP 2: Generating and binding a texture ID to our image
+    GLuint textureID;
+    glGenTextures(NUMBER_OF_TEXTURES, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, LEVEL_OF_DETAIL, GL_RGBA, width, height, TEXTURE_BORDER, GL_RGBA, GL_UNSIGNED_BYTE, image);
+
+    // STEP 3: Setting our texture filter parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // STEP 4: Releasing our file from memory and returning our texture id
+    stbi_image_free(image);
+
+    return textureID;
+}
 
 
- void update()
- {
-     float ticks = (float) SDL_GetTicks() / MILLISECONDS_IN_SECOND;
-     float delta_time = ticks - g_previous_ticks;
-     g_previous_ticks = ticks;
-     glm::vec3 translation_vector;
-     glm::vec3 scale_vector;
-     float cos = glm::cos(theta);
-     float sin = glm::sin(theta);
-     theta += 1.0f * delta_time;
+void initialise()
+{
+    // Initialise video and joystick subsystems
+    SDL_Init(SDL_INIT_VIDEO);
+
+    g_display_window = SDL_CreateWindow("Hello, Textures!",
+                                      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                      WINDOW_WIDTH, WINDOW_HEIGHT,
+                                      SDL_WINDOW_OPENGL);
+
+    SDL_GLContext context = SDL_GL_CreateContext(g_display_window);
+    SDL_GL_MakeCurrent(g_display_window, context);
+
+    if (g_display_window == nullptr)
+    {
+        std::cerr << "Error: SDL window could not be created.\n";
+        SDL_Quit();
+        exit(1);
+    }
+
+#ifdef _WINDOWS
+    glewInit();
+#endif
+
+    glViewport(VIEWPORT_X, VIEWPORT_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
+    g_shader_program.load(V_SHADER_PATH, F_SHADER_PATH);
+
+    g_kimi_matrix       = glm::mat4(1.0f);
+    g_totsuko_matrix     = glm::mat4(1.0f);
+    g_view_matrix       = glm::mat4(1.0f);
+    g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
+
+    g_shader_program.set_projection_matrix(g_projection_matrix);
+    g_shader_program.set_view_matrix(g_view_matrix);
+
+    glUseProgram(g_shader_program.get_program_id());
+
+    glClearColor(BG_RED, BG_BLUE, BG_GREEN, BG_OPACITY);
+
+    g_kimi_texture_id   = load_texture(KIMI_SPRITE_FILEPATH);
+    g_totsuko_texture_id = load_texture(TOTSUKO_SPRITE_FILEPATH);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+
+void process_input()
+{
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE)
+        {
+            g_app_status = TERMINATED;
+        }
+    }
+}
+
+
+void update()
+{
+    /* Delta time calculations */
+    float ticks = (float) SDL_GetTicks() / MILLISECONDS_IN_SECOND;
+    float delta_time = ticks - g_previous_ticks;
+    g_previous_ticks = ticks;
     
-     // ——————————— YOUR ORBIT TRANSFORMATIONS SHOULD GO HERE ——————————— //
-     translation_vector = glm::vec3(cos, sin, 0.0f);
-     scale_vector = glm::vec3((sin * sin * 0.5f) + 1,
-                              (sin * sin * 0.5f) + 1,
-                              1.0f);
-     g_model_matrix = glm::mat4(1.0f);
-     g_model_matrix = glm::translate(g_model_matrix, translation_vector);
-     g_model_matrix = glm::scale(g_model_matrix, scale_vector);
-     
-     // ————————————————————————————————————————————————————————————————— //
- }
+    /* Sin Calculations */
+    float sin = glm::sin(theta);
+    theta += 1.0f * delta_time;
+
+    /* Varable Initialization */
+    glm::vec3 translation_vector;
+    glm::vec3 scale_vector;
+    glm::vec3 rotation_triggers;
+    
+    /* Game logic */
+    translation_vector = glm::vec3(sin * 50, sin * 50, 0.0f);
+
+    /* Model matrix reset */
+    g_kimi_matrix    = glm::mat4(1.0f);
+    g_totsuko_matrix = glm::mat4(1.0f);
+    
+
+    /* Transformations */
+    g_kimi_matrix = glm::translate(g_kimi_matrix, translation_vector);
+    g_kimi_matrix = glm::scale(g_kimi_matrix, INIT_SCALE);
+
+    g_totsuko_matrix = glm::scale(g_totsuko_matrix, INIT_SCALE);
+    
+}
 
 
- void render() {
-     glClear(GL_COLOR_BUFFER_BIT);
-
-     g_shader_program.set_model_matrix(g_model_matrix);
-
-     float vertices[] =
-     {
-          0.5f, -0.5f,
-          0.0f,  0.5f,
-         -0.5f, -0.5f
-     };
-
-     glVertexAttribPointer(g_shader_program.get_position_attribute(),
-                           2, GL_FLOAT, false, 0, vertices);
-     glEnableVertexAttribArray(g_shader_program.get_position_attribute());
-     glDrawArrays(GL_TRIANGLES, 0, 3);
-     glDisableVertexAttribArray(g_shader_program.get_position_attribute());
-
-     SDL_GL_SwapWindow(g_display_window);
- }
+void draw_object(glm::mat4 &object_g_model_matrix, GLuint &object_texture_id)
+{
+    g_shader_program.set_model_matrix(object_g_model_matrix);
+    glBindTexture(GL_TEXTURE_2D, object_texture_id);
+    glDrawArrays(GL_TRIANGLES, 0, 6); // we are now drawing 2 triangles, so use 6, not 3
+}
 
 
- void shutdown() { SDL_Quit(); }
+void render()
+{
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Vertices
+    float vertices[] =
+    {
+        -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f,  // triangle 1
+        -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f   // triangle 2
+    };
+
+    // Textures
+    float texture_coordinates[] =
+    {
+        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f,     // triangle 1
+        0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,     // triangle 2
+    };
+
+    glVertexAttribPointer(g_shader_program.get_position_attribute(), 2, GL_FLOAT, false,
+                          0, vertices);
+    glEnableVertexAttribArray(g_shader_program.get_position_attribute());
+
+    glVertexAttribPointer(g_shader_program.get_tex_coordinate_attribute(), 2, GL_FLOAT,
+                          false, 0, texture_coordinates);
+    glEnableVertexAttribArray(g_shader_program.get_tex_coordinate_attribute());
+
+    // Bind texture
+    draw_object(g_kimi_matrix, g_kimi_texture_id);
+    draw_object(g_totsuko_matrix, g_totsuko_texture_id);
+
+    // We disable two attribute arrays now
+    glDisableVertexAttribArray(g_shader_program.get_position_attribute());
+    glDisableVertexAttribArray(g_shader_program.get_tex_coordinate_attribute());
+
+    SDL_GL_SwapWindow(g_display_window);
+}
 
 
- int main(int argc, char* argv[])
- {
-     initialise();
+void shutdown() { SDL_Quit(); }
 
-     while (g_app_status == RUNNING)
-     {
-         process_input();
-         update();
-         render();
-     }
 
-     shutdown();
-     return 0;
- }
+int main(int argc, char* argv[])
+{
+    initialise();
+
+    while (g_app_status == RUNNING)
+    {
+        process_input();
+        update();
+        render();
+    }
+
+    shutdown();
+    return 0;
+}
