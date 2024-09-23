@@ -181,8 +181,8 @@ void update()
     glm::vec3 scale_vector;
     
     /* Game logic */
-    earth_translation_vector = glm::vec3(sin * 40 * 0.02, sin * 40 * 0.02, 0.0f);
-    moon_translation_vector = glm::vec3(sin * 60 * 0.02, cos * 60 * 0.02, 0.0f);
+    earth_translation_vector = glm::vec3(sin, sin, 0.0f);
+    moon_translation_vector = glm::vec3(sin * 1.25, cos * 1.25, 0.0f);
     scale_vector = glm::vec3((sin * sin * 0.25f) + 1,
                              (sin * sin * 0.25f) + 1,
                              1.0f);
