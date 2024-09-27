@@ -49,9 +49,10 @@ constexpr GLint NUMBER_OF_TEXTURES = 1, // to be generated, that is
                 TEXTURE_BORDER     = 0; // this value MUST be zero
 
 constexpr char EARTH_SPRITE_FILEPATH[]    = "earth.png",
-               MOON_SPRITE_FILEPATH[]     = "moon.png";
+               MOON_SPRITE_FILEPATH[]     = "moon.png",
+               SUN_SPRITE_FILEPATH[]      = "sun.png";
 
-constexpr glm::vec3 INIT_SCALE = glm::vec3(2.0f, 1.98f, 0.0f);
+constexpr glm::vec3 INIT_SCALE = glm::vec3(1.0f, 0.98f, 0.0f);
 
 float theta = 0.0f;
 
@@ -64,13 +65,15 @@ ShaderProgram g_shader_program = ShaderProgram();
 glm::mat4 g_view_matrix,
           g_earth_matrix,
           g_moon_matrix,
+          g_sun_matrix,
           g_projection_matrix;
 
-float g_previous_ticks = 0.0f;
+ float g_previous_ticks = 0.0f;
 
-glm::vec3 g_rotation    = glm::vec3(0.0f, 0.0f, 0.0f);
-GLuint g_earth_texture_id,
-       g_moon_texture_id;
+ glm::vec3 g_rotation    = glm::vec3(0.0f, 0.0f, 0.0f);
+ GLuint g_earth_texture_id,
+        g_moon_texture_id,
+        g_sun_texture_id;
 
 
 GLuint load_texture(const char* filepath)
@@ -132,6 +135,7 @@ void initialise()
 
     g_earth_matrix      = glm::mat4(1.0f);
     g_moon_matrix       = glm::mat4(1.0f);
+    g_sun_matrix        = glm::mat4(1.0f);
     g_view_matrix       = glm::mat4(1.0f);
     g_projection_matrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
 
@@ -144,6 +148,7 @@ void initialise()
 
     g_earth_texture_id   = load_texture(EARTH_SPRITE_FILEPATH);
     g_moon_texture_id = load_texture(MOON_SPRITE_FILEPATH);
+    g_sun_texture_id = load_texture(SUN_SPRITE_FILEPATH);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -180,9 +185,10 @@ void update()
     glm::vec3 moon_translation_vector;
     glm::vec3 scale_vector;
     
+    
     /* Game logic */
-    earth_translation_vector = glm::vec3(sin, sin, 0.0f);
-    moon_translation_vector = glm::vec3(sin * 1.25, cos * 1.25, 0.0f);
+    earth_translation_vector = glm::vec3(sin * 1.3, cos * 1.3, 0.0f);
+    moon_translation_vector = glm::vec3(sin * 1.5, cos * 1.5, 0.0f);
     scale_vector = glm::vec3((sin * sin * 0.25f) + 1,
                              (sin * sin * 0.25f) + 1,
                              1.0f);
@@ -191,18 +197,20 @@ void update()
     /* Model matrix reset */
     g_earth_matrix = glm::mat4(1.0f);
     g_moon_matrix = glm::mat4(1.0f);
+    g_sun_matrix = glm::mat4(1.0f);
 
     /* Transformations */
-    g_earth_matrix = glm::translate(g_earth_matrix, earth_translation_vector);
-    g_earth_matrix = glm::scale(g_earth_matrix, INIT_SCALE);
+    g_earth_matrix = glm::translate(g_sun_matrix, earth_translation_vector);
     
     g_moon_matrix = glm::translate(g_earth_matrix, moon_translation_vector);
     g_moon_matrix = glm::scale(g_moon_matrix, scale_vector);
+    g_sun_matrix = glm::scale(g_sun_matrix, INIT_SCALE);
     
     //NEED TO be done last otherwise moon also rotates
     g_earth_matrix = glm::rotate(g_earth_matrix,
                                  ROT_ANGLE,
                                  glm::vec3(0.0f, 0.0f, 1.0f));
+    g_sun_matrix = glm::rotate(g_sun_matrix, ROT_ANGLE * 10, glm::vec3(0.0f,0.0f,1.0f));
     
 }
 
@@ -244,6 +252,7 @@ void render()
     // Bind texture
     draw_object(g_earth_matrix, g_earth_texture_id);
     draw_object(g_moon_matrix, g_moon_texture_id);
+    draw_object(g_sun_matrix, g_sun_texture_id);
 
     // We disable two attribute arrays now
     glDisableVertexAttribArray(g_shader_program.get_position_attribute());
